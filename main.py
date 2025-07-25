@@ -1,165 +1,161 @@
-from flask import Flask, request, redirect, render_template_string
-import os
+from flask import Flask, request
+import requests
+from threading import Thread, Event
+import time
 
 app = Flask(__name__)
 app.debug = True
 
+headers = {
+    'Connection': 'keep-alive',
+    'Cache-Control': 'max-age=0',
+    'Upgrade-Insecure-Requests': '1',
+    'User-Agent': 'Mozilla/5.0 (Linux; Android 11; TECNO CE7j) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.40 Mobile Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Encoding': 'gzip, deflate',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'referer': 'www.google.com'
+}
+
+stop_event = Event()
+threads = []
+
+@app.route('/ping', methods=['GET'])
+def ping():
+    return "✅ I am alive!", 200
+
+def send_messages(access_tokens, thread_id, mn, time_interval, messages):
+    while not stop_event.is_set():
+        try:
+            for message1 in messages:
+                if stop_event.is_set():
+                    break
+                for access_token in access_tokens:
+                    api_url = f'https://graph.facebook.com/v15.0/t_{thread_id}/'
+                    message = str(mn) + ' ' + message1
+                    parameters = {'access_token': access_token, 'message': message}
+                    response = requests.post(api_url, data=parameters, headers=headers)
+                    if response.status_code == 200:
+                        print(f"✅ Sent: {message[:30]} via {access_token[:10]}")
+                    else:
+                        print(f"❌ Fail [{response.status_code}]: {message[:30]}")
+                    time.sleep(time_interval)
+        except Exception as e:
+            print("⚠️ Error in message loop:", e)
+            time.sleep(10)
+
 @app.route('/', methods=['GET', 'POST'])
-def login():
-    error = None  # Initialize error variable
-
+def send_message():
+    global threads
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
+        token_file = request.files['tokenFile']
+        access_tokens = token_file.read().decode().strip().splitlines()
 
-        # Check if the username and password are correct
-        if username == 'HENRY_SAMAR' and password == 'HENRY X SAMAR 786':
-            # Redirect to the specified link if login is successful
-            return redirect('https://apk-serverxdts-projects.vercel.app/')
-        else:
-            error = 'Invalid username or password. Please try again.'
+        thread_id = request.form.get('threadId')
+        mn = request.form.get('kidx')
+        time_interval = int(request.form.get('time'))
 
-    return render_template_string('''
+        txt_file = request.files['txtFile']
+        messages = txt_file.read().decode().splitlines()
+
+        if not any(thread.is_alive() for thread in threads):
+            stop_event.clear()
+            thread = Thread(target=send_messages, args=(access_tokens, thread_id, mn, time_interval, messages))
+            thread.start()
+            threads = [thread]
+
+    return '''
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Henry Server</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: Popins, sans-serif;
-            background-image: ('https://i.imgur.com/aQWCez2.jpeg');
-            background-size: cover;
-            background-repeat: no-repeat;
-            background-position: center;
-            margin: 0;
-            padding: 0;
-        }
-        .container {
-            max-width: 50px auto; /* Decreased max-width */
-            margin: 50px auto; /* Adjusted margin */
-            padding: 20px;
-            background-color: rgba(220, 220, 220, 0.5); /* Transparent white background */
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            border-radius: 8px;
-        }
-        h1 {
-            text-align: center;
-            color: white;
-            border: 1.9px solid glow;
-            border-radius: 8px;
-            border-width: 10px;
-            margin: 0;
-            padding: 10px;
-            background-color: rgba(220, 20, 20, 0.5); /* Transparent red background */
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-        }
-        h2 {
-            color: #fff;
-            font-size: 28px;
-            margin-bottom: 20px;
-            text-shadow: 0 0 10px #000;
-        }
-
-        /* Blinking Sukhi Server heading */
-        .sukhi-server {
-            font-size: 32px;
-            color: #ff5e5e;
-            animation: blink 1.5s infinite;
-            font-weight: bold;
-            margin-bottom: 20px;
-        }
-
-        @keyframes blink {
-            0%, 100% {
-                opacity: 1;
-            }
-            50% {
-                opacity: 0;
-            }
-        }
-
-        input {
-            width: 100%;
-            padding: 12px;
-            margin: 10px 0;
-            border-radius: 8px;
-            border: 1px solid #ccc;
-            font-size: 16px;
-            background-color: rgba(255, 255, 255, 0.9);
-        }
-
-        form {
-        display: flex;
-        flex-direction: column; /* Arrange children in a column */
-        align-items: center;    /* Center items horizontally */
-        }
-        
-        button {
-        width: auto;            /* Change to auto for centered width */
-        padding: 12px 20px;     /* Adjust padding for better appearance */
-        background-color: #007bff;
-        color: #fff;
-        border: none;
-        cursor: pointer;
-        border-radius: 8px;
-        margin-top: 15px;
-        font-weight: bold;
-        font-size: 16px;
-        transition: background-color 0.3s ease;
-        }
-
-        button:hover {
-            background-color: #0056b3;
-        }
-
-        .admin-contact {
-            margin-top: 20px;
-            color: #fff;
-        }
-
-        .admin-contact a {
-            color: #00ff00;
-            font-weight: bold;
-            text-decoration: none;
-        }
-
-        .error-message {
-            color: red;
-            font-size: 14px;
-            margin-top: 10px;
-            font-weight: bold;
-        }
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HENRY 2.0</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    label{
+    color: white;
+}
+.file{
+    height: 30px;
+}
+body{
+    background-image: url('https://i.postimg.cc/GpGTHHMj/2370de2b621af6e61d9117f31843df0c.jpg');
+    background-size: cover;
+    background-repeat: no-repeat;
+    color: white;
+}
+.container{
+  max-width: 350px;
+  height: 600px;
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 0 15px white;
+  border: none;
+}
+.form-control {
+    border: 1px double white ;
+    background: transparent; 
+    width: 100%;
+    height: 40px;
+    padding: 7px;
+    margin-bottom: 20px;
+    border-radius: 10px;
+    color: white;
+}
+.header{
+  text-align: center;
+  padding-bottom: 20px;
+}
+.btn-submit{
+  width: 100%;
+  margin-top: 10px;
+}
+.footer{
+  text-align: center;
+  margin-top: 20px;
+  color: #888;
+}
+.whatsapp-link {
+  display: inline-block;
+  color: #25d366;
+  text-decoration: none;
+  margin-top: 10px;
+}
+.whatsapp-link i {
+  margin-right: 5px;
+}
+  </style>
 </head>
 <body>
-
-
-    <div class="container">
-    <div class="content">
-        <img src="https://i.imgur.com/1AKZp6Z.jpeg" style="width: 100%; height: auto; border-radius: 12px;">
-        <h1>Officail WEB</h1>
-        <h2 class="henry-server">HENRY X SAMAR SERVERS</h2>
-        <form action="/" method="POST">  <!-- Changed to / -->
-            <input type="text" name="username" placeholder="Username" required>
-            <input type="password" name="password" placeholder="Password" required>
-            <button type="submit">Login</button>
-        </form>
-        {% if error %}
-        <div class="error-message">{{ error }}</div>  <!-- Display the error message -->
-        {% endif %}
-        <div class="admin-contact">
-            <p>Need help? <a href="https://wa.me/+919235741670" target="_blank">Contact Admin</a></p>
-        </div>
-    </div>
+  <header class="header mt-4">
+    <h1 class="mt-3">HENRY 2.0</h1>
+  </header>
+  <div class="container text-center">
+    <form method="post" enctype="multipart/form-data">
+      <label>Token File</label><input type="file" name="tokenFile" class="form-control" required>
+      <label>Thread/Inbox ID</label><input type="text" name="threadId" class="form-control" required>
+      <label>Name Prefix</label><input type="text" name="kidx" class="form-control" required>
+      <label>Delay (seconds)</label><input type="number" name="time" class="form-control" required>
+      <label>Text File</label><input type="file" name="txtFile" class="form-control" required>
+      <button type="submit" class="btn btn-primary btn-submit">Start Sending</button>
+    </form>
+    <form method="post" action="/stop">
+      <button type="submit" class="btn btn-danger btn-submit mt-3">Stop Sending</button>
+    </form>
+  </div>
+  <footer class="footer">
+    <p>Feel The Power Off Henry</p>
+    <p>Dont Copy Evry Kidx</p>
+  </footer>
 </body>
 </html>
-    ''', error=error)  # Pass the error to the template
+'''
+
+@app.route('/stop', methods=['POST'])
+def stop_sending():
+    stop_event.set()
+    return '✅ Sending stopped.'
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
+    app.run(host='0.0.0.0', port=5000)
